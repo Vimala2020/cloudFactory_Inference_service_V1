@@ -1,0 +1,17 @@
+flowchart LR
+    users([Clients]) --> dns["DNS with synthetic health checks"]
+
+    subgraph A["Region A - primary"]
+        gwA["Gateway"] --> clA["Cluster A<br/>all model versions"]
+    end
+    subgraph B["Region B - optional warm standby"]
+        gwB["Gateway"] --> clB["Cluster B<br/>same model versions"]
+    end
+
+    dns --> gwA
+    dns -.->|"failover"| gwB
+
+    clA -.->|"Argo CD pulls"| git[("Git: model catalog<br/>and platform repositories")]
+    clB -.->|"Argo CD pulls"| git
+    ecrA[("Registry A")] -.->|"replicate"| ecrB[("Registry B")]
+    s3A[("Artefact bucket A")] -.->|"replicate"| s3B[("Artefact bucket B")]

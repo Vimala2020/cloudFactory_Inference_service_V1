@@ -1,0 +1,9 @@
+flowchart TB
+    a["ML team builds image"] --> b["CI scans image<br/>Trivy: vulnerabilities and secrets"]
+    b --> c["CI generates SBOM"]
+    c --> d["CI signs image digest<br/>cosign keyless via GitHub OIDC"]
+    d --> e[("Amazon ECR")]
+    e --> f["Argo CD applies manifest"]
+    f --> g{"Kyverno admission check"}
+    g -->|"signature and rules valid"| h["Pod admitted"]
+    g -->|"unsigned or rule broken"| i["Rejected"]

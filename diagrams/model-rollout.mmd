@@ -1,0 +1,10 @@
+flowchart TB
+    a["ML team builds image"] --> b["CI: scan, sign, contract tests"]
+    b --> c["Catalogue pull request and staging load test"]
+    c --> d["Deploy with zero stable traffic<br/>pinned route is live"]
+    d --> e["Offline evaluation<br/>optional shadow comparison"]
+    e --> f["Canary: 5, then 25, then 50 percent<br/>route weights changed through Git"]
+    f --> g{"Analysis passes and<br/>operator approves?"}
+    g -->|"yes"| h["Promote to 100 percent"]
+    g -->|"no"| r["Restore previous route weights"]
+    h --> i["Retain rollback capacity, then retire old version"]

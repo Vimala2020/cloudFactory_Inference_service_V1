@@ -1,0 +1,16 @@
+flowchart TB
+    pods["Model pods and gateway"]
+    pods -->|"metrics"| prom[("Prometheus")]
+    pods -->|"JSON logs"| loki[("Loki")]
+    pods -->|"traces"| tempo[("Tempo")]
+    pods -.->|"approved sampling"| s3[("Encrypted object storage")]
+    s3 -.-> quality["Quality and drift job<br/>scheduled"]
+    quality -.->|"quality metrics"| prom
+    prom --> graf["Grafana dashboards"]
+    loki --> graf
+    tempo --> graf
+    prom --> am["Alertmanager"] --> team["Slack / PagerDuty"]
+    prom --> keda["KEDA autoscaling"]
+    prom --> gates["Release analysis"]
+    probe["External synthetic probe<br/>runs outside the cluster"] --> ext["Independent external alerting<br/>separate notification path"]
+    ext --> team

@@ -1,0 +1,31 @@
+flowchart TB
+    clients(["Inference clients"]) --> dns["DNS (Route 53)"]
+    dns --> nlb["Network Load Balancer"]
+    nlb --> gw["Istio ingress gateway<br/>TLS, JWT authentication, routing"]
+    dns -.->|"optional failover"| regionb["Region B - optional warm standby<br/>same setup, same models"]
+
+    subgraph eks["Amazon EKS cluster - 3 availability zones"]
+        route["Gateway routing rules<br/>/models/name/version<br/>/models/name/stable"]
+        ctrl["KEDA scales each version<br/>Karpenter adds nodes<br/>Kyverno enforces admission policy"]
+        subgraph models["Model versions - each has its own Service and Deployment"]
+            f1["Fraud v1"]
+            f2["Fraud v2"]
+            cr["Risk v1"]
+            f3["Fraud v3 candidate<br/>optional shadow copy"]
+        end
+    end
+
+    subgraph delivery["Build and delivery"]
+        ci["GitHub Actions<br/>test, scan, sign images"] --> ecr[("Amazon ECR<br/>signed images")]
+        tf["Terraform<br/>network, cluster, registry"]
+        argo["Argo CD<br/>deploys from Git"]
+    end
+
+    gw --> route
+    route --> f1
+    route --> f2
+    route --> cr
+    route -.->|"optional copy"| f3
+    ctrl -.-> models
+    models --> obs["Prometheus, Grafana, Loki, Tempo<br/>dashboards and alerts"]
+    eks ---|"built and deployed by"| delivery
