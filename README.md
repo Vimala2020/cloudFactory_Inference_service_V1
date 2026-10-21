@@ -14,7 +14,7 @@ This document proposes a platform for hosting machine learning models that are d
 |---|---|
 | Included from the start | One deployment per model version; gateway routing with pinned and stable routes; per-version autoscaling; GitOps delivery; image scanning, signing and admission policies; metrics, logs, traces and alerting; staged releases with approval gates |
 | Optional extensions | Warm standby in a second region; ambient service mesh with workload mTLS; automated progressive delivery; shadow-traffic comparison; scale-to-zero for non-critical versions |
-| Out of scope | Streaming responses; batch and asynchronous inference; stateful models |
+
 
 ### Where each requirement is addressed
 
@@ -27,7 +27,7 @@ This document proposes a platform for hosting machine learning models that are d
 | Monitoring and observability | 4 |
 | Rolling out a new model version | 5.1 |
 | Updating infrastructure and services | 5.2, 5.3 |
-| Reasoning behind the choices | 6 |
+
 
 ---
 
@@ -341,29 +341,9 @@ These are tests to be run. They are not claims that this proposal has already pa
 
 ---
 
-## 6. Design rationale
 
-| Decision | Reasoning | Alternatives and trade-off |
-|---|---|---|
-| Kubernetes on EKS | Models are Docker images. Requirements include GPUs, scaling on custom metrics and several versions side by side without dependence on one vendor's serving contract | Lambda has image size limits and no GPU support, which suit large models poorly. ECS supports custom-metric autoscaling and is a viable option with lower operational overhead. Kubernetes is chosen for its workload abstractions and controller ecosystem (per-version Deployments and Services, gateway routing, KEDA, Karpenter, admission policy and GitOps tooling) and for portability across clouds. A managed inference platform would be reassessed if its image contract, version routing and GPU economics meet the requirements. The cost of Kubernetes is cluster operation, reduced by managed EKS and GitOps |
-| One Deployment and Service per model version | Provides isolation, independent scaling and side-by-side hosting by construction. Pinned routes remain stable while the stable route changes | A single Deployment with version labels needs special handling for each of these. The cost is more objects, handled by the shared chart |
-| Deployments with KEDA instead of KServe or Seldon | The ML team already ships a serving container with fixed endpoints, so a serving framework adds little and brings further dependencies | If shared runtimes such as Triton or vLLM are adopted, KServe can be added for those models only |
-| Scaling on concurrency, not CPU | Reflects real load, including GPU-bound models | Requires a load test per model to set the target and an exported active-request metric |
-| Karpenter | Provisions suitably sized nodes quickly, including a separate GPU pool | The Cluster Autoscaler is less flexible. Node start-up time still has to be benchmarked |
-| Istio ingress gateway without a mesh initially | Mature weighted routing, JWT and policy enforcement without a second data plane | A mesh adds workload mTLS and service identity and is added if those are required. Another gateway is viable if its tested features cover routing, authorisation and rate limiting |
-| Argo CD (GitOps) | Reviewed, repeatable, reversible changes. CI holds no cluster credentials | Push-based deployment from CI would need cluster access and does not correct manual drift |
-| Terraform | Reviewable plans and repeatable environments | Terragrunt adds a tool and is introduced only if repeated stacks justify it |
-| Operator-approved promotion first | Thresholds and telemetry are proven before decisions are automated. Missing telemetry blocks promotion | Slower than automation. Automated progressive delivery is a planned extension |
-| Optional shadow comparison | Tests a candidate on real traffic without user impact | Needs a capture path, side-effect control, privacy approval and extra capacity, so it is not assumed |
-| Signed images with admission policy | Images come from another team and are verified before they run | Adds a CI step and a possible deployment blocker, so admission starts in audit mode |
-| Single region first | Keeps the initial implementation small enough to operate | A regional outage is not covered until the optional standby is funded and rehearsed |
-| Prometheus, Grafana, Loki, Tempo | Open and vendor-neutral. The same data drives dashboards, alerts, scaling and release analysis | A hosted service reduces operational effort. The better option depends on telemetry volume, retention, staffing, total operating cost and lock-in risk, and should be decided with those figures |
-| Error-budget burn alerts | Fewer and more meaningful pages than fixed thresholds | Requires objectives agreed with each model owner |
-| Drift as a warning, not an automatic rollback | Drift can reflect a genuine change in the data, not a fault | Needs an owner to act on the alert |
 
----
-
-## 7. Implementation order
+## 6. Implementation order
 
 1. **Core platform.** Terraform for network and EKS, Argo CD, the shared chart, gateway routing, baseline security and telemetry. Run two dummy model versions end to end.
 2. **Scaling and failure tests.** Load-tested per-version scaling, overload behaviour, node and zone loss.
