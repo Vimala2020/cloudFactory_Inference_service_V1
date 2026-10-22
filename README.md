@@ -105,7 +105,7 @@ The request path is as follows.
 **Pod scaling.** KEDA creates one Horizontal Pod Autoscaler (HPA) for each Deployment and reads a concurrency signal from Prometheus. There is exactly one replica controller per workload. A second, independently configured HPA must not be added, because the two would compete.
 
 - The model server, or a small agreed instrumentation adapter, exports the number of active requests. Gateway latency and error metrics are available without changing model code, but they do not provide application queue depth or inference execution spans.
-- CPU utilisation is a poor scaling signal for inference. A GPU-bound model can be saturated while its CPU appears idle.
+- Concurrency is the primary scaling signal. CPU utilisation can also help for CPU-bound models, but may not reflect saturation in GPU-bound models.
 - For a server that handles one request per pod at a time, execution concurrency is enforced at one, and the initial target is below one busy request per ready pod to leave headroom. If an image runs several workers, its safe concurrency is benchmarked.
 - The scaler query, metric type, zero-traffic result and behaviour when metrics are unavailable are specified and tested. Latency and GPU utilisation are supporting diagnostic signals, not the sole scaling input.
 
@@ -340,6 +340,13 @@ Before production approval, the following are demonstrated and measured against 
 These are tests to be run. They are not claims that this proposal has already passed them.
 
 ---
+## Key design decisions
+
+I chose Kubernetes on EKS over a managed inference service or ECS because the platform must run arbitrary ML team Docker images as separate model versions, each with its own Service, autoscaler and routing, and Kubernetes’ workload abstractions and controller ecosystem (KEDA, Karpenter, Kyverno, Argo CD) fit that directly and stay portable across clouds. 
+ECS can also autoscale on custom metrics and would carry less operational overhead, and a managed inference platform could reduce that overhead further, so I would revisit either if its image contract, version routing and GPU economics met the requirements. The cost of my choice is that we operate a cluster, which managed EKS and GitOps keep manageable. 
+For ingress I use an Istio gateway without a service mesh, because it gives mature weighted routing, JWT validation and authorisation policies, and prefix rewriting to preserve each model’s fixed endpoints, without adding a second data plane or waypoint proxies. 
+A mesh is a later extension if workload mTLS or in-cluster layer 7 policy becomes a requirement. Promotion of a new model version is operator-approved at first: route weights move through reviewed Git changes (5%, 25%, 50%, then 100%), and an operator approves each step after the analysis passes. Missing telemetry blocks promotion, and a failed gate means restoring the previous weights. 
+I prefer this because thresholds and telemetry need to be proven before decisions are automated. It is slower than automation, so automated progressive delivery such as Argo Rollouts is a planned extension, and rollback time is measured, not assumed.
 
 
 
@@ -354,6 +361,7 @@ These are tests to be run. They are not claims that this proposal has already pa
 This design favours explicit failure behaviour and verifiable operation over a long list of components.
 
 ---
+
 
 ## Glossary
 
